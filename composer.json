@@ -1,5 +1,5 @@
 {
-  "name": "tiagoknow/gestor-simples-sdk",
+  "name": "tiagoknow/gestor-simples-sdk-php",
   "description": "SDK PHP oficial para integração com a API do Gestor Simples",
   "type": "library",
   "license": "MIT",
