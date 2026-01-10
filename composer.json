@@ -1,0 +1,25 @@
+{
+  "name": "tiagoknow/gestor-simples-sdk",
+  "description": "SDK PHP oficial para integração com a API do Gestor Simples",
+  "type": "library",
+  "license": "MIT",
+  "autoload": {
+    "psr-4": {
+      "GestorSimples\\": "src/"
+    }
+  },
+  "require": {
+    "php": "^8.0",
+    "guzzlehttp/guzzle": "^7.0"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.0"
+  },
+  "authors": [
+    {
+      "name": "Tiago de Sá",
+      "email": "tiagoi386@gmail.com"
+    }
+  ],
+  "minimum-stability": "stable"
+}
