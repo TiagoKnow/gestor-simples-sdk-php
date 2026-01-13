@@ -2,6 +2,7 @@
 
 namespace GestorSimples;
 
+use GestorSimples\Resources\CategoryResource;
 use GuzzleHttp\Client;
 use GuzzleHttp\Exception\RequestException;
 use GestorSimples\Exceptions\ApiException;
@@ -103,6 +104,11 @@ class GestorSimplesClient
     public function financialEntries(): FinancialEntryResource
     {
         return new FinancialEntryResource($this);
+    }
+
+    public function categories(): CategoryResource
+    {
+        return new CategoryResource($this);
     }
 
     // Métodos diretos (para conveniência)

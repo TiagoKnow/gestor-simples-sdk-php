@@ -101,3 +101,38 @@ try {
 Exemplos
 Verifique a pasta examples/ para mais exemplos de uso.
 ```
+
+## Categorias Financeiras
+
+```php
+// Listar todas as categorias
+$categories = $client->categories()->all();
+
+// Buscar categoria por ID
+$category = $client->categories()->find(123);
+
+// Criar nova categoria
+$newCategory = $client->categories()->create([
+    'name' => 'Vendas Online',
+    'type' => 'income', // ou 'expense'
+    'color' => '#10B981'
+]);
+
+// Atualizar categoria
+$updatedCategory = $client->categories()->update(123, [
+    'name' => 'Novo Nome',
+    'color' => '#F59E0B'
+]);
+
+// Buscar categorias por tipo
+$incomeCategories = $client->categories()->incomeCategories();
+$expenseCategories = $client->categories()->expenseCategories();
+
+// Buscar categoria por nome
+$category = $client->categories()->findByName('Aluguel', 'expense');
+
+// Buscar ou criar
+$category = $client->categories()->findOrCreate('Serviços', 'income', '#3B82F6');
+
+// Criar com cor sugerida automaticamente
+$category = $client->categories()->createWithSuggestedColor('Material de Escritório', 'expense');
