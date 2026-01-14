@@ -28,7 +28,7 @@ class GestorSimplesClient
         }
 
         $this->defaultHeaders = [
-            'api_token' => $this->apiToken,
+            'Authorization' => 'Bearer ' . $this->apiToken,
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
             'User-Agent' => 'GestorSimples-PHP-SDK/1.0',
