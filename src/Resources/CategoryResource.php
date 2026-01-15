@@ -106,7 +106,7 @@ class CategoryResource
         $categories = $this->all($params);
 
         if (!empty($categories)) {
-            return $categories[0] ?? null;
+            return $categories['data'][0] ?? null;
         }
 
         return null;
