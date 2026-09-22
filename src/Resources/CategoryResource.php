@@ -4,158 +4,41 @@ namespace GestorSimples\Resources;
 
 use GestorSimples\GestorSimplesClient;
 
+/**
+ * Categorias de lançamento — `/v1/categories`.
+ *
+ * Só leitura: a API cria categoria sozinha quando um lançamento chega com
+ * `category` por nome, então um integrador raramente precisa desta lista —
+ * ela serve para quem prefere mandar `category_id` explícito.
+ */
 class CategoryResource
 {
-    private GestorSimplesClient $client;
+    public function __construct(private GestorSimplesClient $client) {}
 
-    public function __construct(GestorSimplesClient $client)
+    public function all(): array
     {
-        $this->client = $client;
+        return $this->client->get('categories');
     }
 
     /**
-     * Lista todas as categorias
+     * Procura pelo nome (comparação sem diferenciar maiúsculas).
      */
-    public function all(array $params = []): array
+    public function findByName(string $name, ?string $kind = null): ?array
     {
-        return $this->client->get('categories', $params);
-    }
+        $target = mb_strtolower(trim($name));
 
-    /**
-     * Busca uma categoria pelo ID
-     */
-    public function find(int $id): ?array
-    {
-        try {
-            return $this->client->get("categories/{$id}");
-        } catch (\GestorSimples\Exceptions\ApiException $e) {
-            if ($e->getCode() === 404) {
-                return null;
+        foreach ($this->all()['data'] ?? [] as $category) {
+            if (mb_strtolower((string) ($category['name'] ?? '')) !== $target) {
+                continue;
             }
-            throw $e;
-        }
-    }
 
-    /**
-     * Cria uma nova categoria
-     */
-    public function create(array $data): array
-    {
-        // Validações básicas
-        if (!isset($data['name']) || empty($data['name'])) {
-            throw new \InvalidArgumentException('O campo "name" é obrigatório');
-        }
+            if ($kind !== null && ($category['kind'] ?? null) !== $kind) {
+                continue;
+            }
 
-        if (!isset($data['type']) || !in_array($data['type'], ['income', 'expense'])) {
-            throw new \InvalidArgumentException('O campo "type" deve ser "income" ou "expense"');
-        }
-
-        return $this->client->post('categories', $data);
-    }
-
-    /**
-     * Atualiza uma categoria pelo ID
-     */
-    public function update(int $id, array $data): array
-    {
-        if (isset($data['type']) && !in_array($data['type'], ['income', 'expense'])) {
-            throw new \InvalidArgumentException('O campo "type" deve ser "income" ou "expense"');
-        }
-
-        return $this->client->put("categories/{$id}", $data);
-    }
-
-    /**
-     * Busca categorias por tipo
-     */
-    public function findByType(string $type): array
-    {
-        if (!in_array($type, ['income', 'expense'])) {
-            throw new \InvalidArgumentException('O tipo deve ser "income" ou "expense"');
-        }
-
-        return $this->all(['type' => $type]);
-    }
-
-    /**
-     * Busca categorias de receita
-     */
-    public function incomeCategories(): array
-    {
-        return $this->findByType('income');
-    }
-
-    /**
-     * Busca categorias de despesa
-     */
-    public function expenseCategories(): array
-    {
-        return $this->findByType('expense');
-    }
-
-    /**
-     * Busca categoria pelo nome
-     */
-    public function findByName(string $name, string $type = null): ?array
-    {
-        $params = ['name' => $name];
-        if ($type) {
-            $params['type'] = $type;
-        }
-
-        $categories = $this->all($params);
-
-        if (!empty($categories)) {
-            return $categories['data'][0] ?? null;
-        }
-
-        return null;
-    }
-
-    /**
-     * Busca ou cria uma categoria
-     */
-    public function findOrCreate(string $name, string $type, string $color = null): array
-    {
-        $category = $this->findByName($name, $type);
-
-        if ($category) {
             return $category;
         }
 
-        $data = [
-            'name' => $name,
-            'type' => $type
-        ];
-
-        if ($color) {
-            $data['color'] = $color;
-        }
-
-        return $this->create($data);
-    }
-
-    /**
-     * Sugere uma cor baseada no tipo
-     */
-    public function suggestColor(string $type): string
-    {
-        return match($type) {
-            'income' => '#10B981', // Verde
-            'expense' => '#EF4444', // Vermelho
-            default => '#6B7280' // Cinza
-        };
-    }
-
-    /**
-     * Cria uma categoria com cor sugerida
-     */
-    public function createWithSuggestedColor(string $name, string $type): array
-    {
-        return $this->create([
-            'name' => $name,
-            'type' => $type,
-            'color' => $this->suggestColor($type)
-        ]);
+        return null;
     }
 }

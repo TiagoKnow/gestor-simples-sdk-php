@@ -1,6 +1,10 @@
 # SDK PHP do Gestor Simples
 
-SDK oficial para integração com a API do Gestor Simples.
+SDK oficial para a **API v1** do [Gestor Simples](https://app.gestorsimples.com.br).
+
+> **Versão 2 — reescrita.** A v1 do SDK falava com o admin legado
+> (`financial_entry`, `start_date`, `type`, ids inteiros) e não funciona
+> contra a API do Gestor Simples. Veja *Migrando da v1* no fim.
 
 ## Instalação
 
@@ -8,131 +12,149 @@ SDK oficial para integração com a API do Gestor Simples.
 composer require tiagoknow/gestor-simples-sdk
 ```
 
-Configuração
-```bash
-require 'vendor/autoload.php';
+## Configuração
 
-use GestorSimples\GestorSimplesClient;
-
-// Para produção
-$client = new GestorSimplesClient([
-    'api_token' => 'SEU_TOKEN_AQUI',
-    'base_url' => 'https://app.gestorsimples.com.br/api/'
-]);
-
-// Para desenvolvimento local
-$devClient = new GestorSimplesClient([
-    'api_token' => 'SEU_TOKEN_DEV',
-    'base_url' => 'http://127.0.0.1:8000/api/',
-    'timeout' => 60
-]);
-```
-Uso
-Clientes
-```bash
-// Listar todos os clientes
-$clients = $client->clients()->all();
-
-// Buscar cliente por documento
-$clientData = $client->clients()->findByDocument('123.456.789-09');
-
-// Criar novo cliente
-$newClient = $client->clients()->create([
-    'name' => 'João Silva',
-    'document' => '123.456.789-09',
-    'email' => 'joao@email.com',
-    'phone' => '(11) 99999-9999'
-]);
-
-// Atualizar cliente
-$updatedClient = $client->clients()->update('123.456.789-09', [
-    'email' => 'novoemail@email.com'
-]);
-
-// Buscar ou criar
-$clientData = $client->clients()->findOrCreate('123.456.789-09', [
-    'name' => 'João Silva',
-    'email' => 'joao@email.com'
-]);
-Lançamentos Financeiros
-
-// Listar todos os lançamentos
-$entries = $client->financialEntries()->all();
-
-// Buscar por ID
-$entry = $client->financialEntries()->find(123);
-
-// Criar novo lançamento
-$newEntry = $client->financialEntries()->create([
-    'description' => 'Venda de produto',
-    'amount' => 150.50,
-    'type' => 'income',
-    'due_date' => '2024-01-15'
-]);
-
-// Filtrar por período
-$entries = $client->financialEntries()->filterByPeriod('2024-01-01', '2024-01-31');
-
-// Buscar lançamentos pendentes
-$pending = $client->financialEntries()->findPending();
-
-// Buscar lançamentos pagos
-$paid = $client->financialEntries()->findPaid();
-
-Uso Direto
-
-// Métodos HTTP diretos
-$response = $client->get('endpoint', ['param' => 'value']);
-$response = $client->post('endpoint', ['data' => 'value']);
-$response = $client->put('endpoint', ['data' => 'value']);
-$response = $client->delete('endpoint');
-Tratamento de Erros
-
-try {
-    $clients = $client->clients()->all();
-} catch (\GestorSimples\Exceptions\AuthenticationException $e) {
-    echo "Erro de autenticação: " . $e->getMessage();
-} catch (\GestorSimples\Exceptions\ValidationException $e) {
-    echo "Erros de validação:";
-    print_r($e->getErrors());
-} catch (\GestorSimples\Exceptions\ApiException $e) {
-    echo "Erro na API: " . $e->getMessage();
-}
-Exemplos
-Verifique a pasta examples/ para mais exemplos de uso.
-```
-
-## Categorias Financeiras
+A chave (`gsk_…`) é gerada em **Configurações → Chaves de API** e aparece em
+claro uma única vez. Ela dá acesso total à empresa dona dela.
 
 ```php
-// Listar todas as categorias
-$categories = $client->categories()->all();
+use GestorSimples\GestorSimplesClient;
 
-// Buscar categoria por ID
-$category = $client->categories()->find(123);
+$client = new GestorSimplesClient([
+    'api_token' => getenv('GESTOR_SIMPLES_TOKEN'),
+    // opcional; o padrão já é a produção
+    'base_url'  => 'https://app.gestorsimples.com.br/api/v1/',
+    'timeout'   => 30,
+]);
+```
 
-// Criar nova categoria
-$newCategory = $client->categories()->create([
-    'name' => 'Vendas Online',
-    'type' => 'income', // ou 'expense'
-    'color' => '#10B981'
+Em desenvolvimento, aponte para o servidor local:
+
+```php
+'base_url' => 'http://localhost:8584/api/v1/',
+```
+
+## Convenções
+
+- **Ids são ULID** (string), nunca inteiros.
+- **Dinheiro é string decimal com ponto**: `"149.90"`.
+- **Datas são `YYYY-MM-DD`**.
+- Método que devolve **um** recurso entrega o recurso já desembrulhado;
+  método de **lista** entrega o envelope com `data` e `meta`.
+- Limite de 60 requisições por minuto por chave.
+
+## Uso
+
+### Registrar um pagamento recebido
+
+O caso mais comum: o gateway confirmou, o SaaS registra.
+
+```php
+$customer = $client->people()->findOrCreateByDocument('11.222.333/0001-81', [
+    'type'  => 'customer',
+    'name'  => 'Café Aurora LTDA',
+    'email' => 'financeiro@cafeaurora.test',
 ]);
 
-// Atualizar categoria
-$updatedCategory = $client->categories()->update(123, [
-    'name' => 'Novo Nome',
-    'color' => '#F59E0B'
+$entry = $client->entries()->recordPayment(
+    description: 'Assinatura Pro — set/2026',
+    amount: '149.90',
+    date: date('Y-m-d'),
+    extra: [
+        'person_id' => $customer['id'],
+        'category'  => 'MeetBox',
+    ],
+);
+```
+
+`category` por **nome** cria ou reusa a categoria daquele tipo — cada sistema
+integrado usa a própria sem configuração prévia. Quem preferir explícito manda
+`category_id`; os dois juntos são rejeitados.
+
+### Clientes e fornecedores
+
+```php
+$client->people()->all(['type' => 'customer', 'search' => 'aurora']);
+$client->people()->find($id);                        // null se não existir
+$client->people()->findByDocument('529.982.247-25'); // null se não existir
+$client->people()->create([
+    'type' => 'customer',
+    'name' => 'Maria Souza',
+    'document' => '529.982.247-25',
 ]);
+```
 
-// Buscar categorias por tipo
-$incomeCategories = $client->categories()->incomeCategories();
-$expenseCategories = $client->categories()->expenseCategories();
+O documento é validado pelos dígitos verificadores (CPF, CNPJ e CNPJ
+alfanumérico) e é único por empresa.
 
-// Buscar categoria por nome
-$category = $client->categories()->findByName('Aluguel', 'expense');
+### Lançamentos
 
-// Buscar ou criar
-$category = $client->categories()->findOrCreate('Serviços', 'income', '#3B82F6');
+```php
+$client->entries()->all(['kind' => 'income', 'status' => 'pending']);
+$client->entries()->find($id);
+$client->entries()->create([...]);
+$client->entries()->setPaid($id);          // marca pago
+$client->entries()->setPaid($id, false);   // estorna
 
-// Criar com cor sugerida automaticamente
-$category = $client->categories()->createWithSuggestedColor('Material de Escritório', 'expense');
+$client->entries()->income();
+$client->entries()->expenses();
+$client->entries()->pending();
+$client->entries()->paid();
+$client->entries()->overdue();
+$client->entries()->betweenDueDates('2026-09-01', '2026-09-30');
+```
+
+### Categorias
+
+```php
+$client->categories()->all();
+$client->categories()->findByName('MeetBox', 'income');
+```
+
+## Erros
+
+```php
+use GestorSimples\Exceptions\ApiException;
+use GestorSimples\Exceptions\AuthenticationException;
+use GestorSimples\Exceptions\ValidationException;
+
+try {
+    $client->entries()->create($dados);
+} catch (ValidationException $e) {
+    // 422 — $e->getErrors() traz as mensagens por campo
+} catch (AuthenticationException $e) {
+    // 401 — chave ausente, inválida ou revogada
+} catch (ApiException $e) {
+    // demais (404, 429, 5xx) — $e->getCode() tem o status
+}
+```
+
+Recurso de outra empresa responde **404**, não 403: a chave nunca revela que
+o registro existe.
+
+## Migrando da v1
+
+| v1 (admin legado) | v2 (API do Gestor Simples) |
+|---|---|
+| `$client->clients()` | `$client->people()` |
+| `$client->financialEntries()` | `$client->entries()` |
+| `find(int $id)` | `find(string $ulid)` |
+| `update($id, $dados)` | não existe; use `setPaid()` |
+| `filterByPeriod($ini, $fim)` | `betweenDueDates($ini, $fim)` |
+| `findByType('income')` | `income()` |
+| `findPending()` / `findPaid()` | `pending()` / `paid()` |
+| base `/api/` | base `/api/v1/` |
+
+## Testes
+
+```bash
+composer install
+composer test
+```
+
+Os testes travam o **contrato** — caminho, verbo e nome de parâmetro de cada
+chamada. Foi a ausência deles que deixou a v1 divergir da API sem ninguém ver.
+
+## Licença
+
+MIT.

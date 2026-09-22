@@ -8,8 +8,8 @@ use GuzzleHttp\Exception\RequestException;
 use GestorSimples\Exceptions\ApiException;
 use GestorSimples\Exceptions\AuthenticationException;
 use GestorSimples\Exceptions\ValidationException;
-use GestorSimples\Resources\ClientResource;
-use GestorSimples\Resources\FinancialEntryResource;
+use GestorSimples\Resources\EntryResource;
+use GestorSimples\Resources\PersonResource;
 
 class GestorSimplesClient
 {
@@ -20,7 +20,7 @@ class GestorSimplesClient
 
     public function __construct(array $config = [])
     {
-        $this->baseUrl = $config['base_url'] ?? 'https://app.gestorsimples.com.br/api/';
+        $this->baseUrl = rtrim($config['base_url'] ?? 'https://app.gestorsimples.com.br/api/v1/', '/').'/';
         $this->apiToken = $config['api_token'] ?? null;
 
         if (empty($this->apiToken)) {
@@ -31,7 +31,7 @@ class GestorSimplesClient
             'Authorization' => 'Bearer ' . $this->apiToken,
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
-            'User-Agent' => 'GestorSimples-PHP-SDK/1.0',
+            'User-Agent' => 'GestorSimples-PHP-SDK/2.0',
         ];
 
         $this->httpClient = new Client([
@@ -39,6 +39,8 @@ class GestorSimplesClient
             'timeout' => $config['timeout'] ?? 30,
             'headers' => $this->defaultHeaders,
             'http_errors' => false, // Lidamos com erros manualmente
+            // permite trocar o transporte (testes, proxy, instrumentação)
+            ...isset($config['handler']) ? ['handler' => $config['handler']] : [],
         ]);
     }
 
@@ -95,17 +97,25 @@ class GestorSimplesClient
         }
     }
 
-    // Métodos para recursos específicos
-    public function clients(): ClientResource
+    /**
+     * Clientes e fornecedores (`/v1/people`).
+     */
+    public function people(): PersonResource
     {
-        return new ClientResource($this);
+        return new PersonResource($this);
     }
 
-    public function financialEntries(): FinancialEntryResource
+    /**
+     * Lançamentos financeiros (`/v1/entries`).
+     */
+    public function entries(): EntryResource
     {
-        return new FinancialEntryResource($this);
+        return new EntryResource($this);
     }
 
+    /**
+     * Categorias de lançamento (`/v1/categories`).
+     */
     public function categories(): CategoryResource
     {
         return new CategoryResource($this);
@@ -125,6 +135,11 @@ class GestorSimplesClient
     public function put(string $endpoint, array $data): array
     {
         return $this->request('PUT', $endpoint, $data);
+    }
+
+    public function patch(string $endpoint, array $data): array
+    {
+        return $this->request('PATCH', $endpoint, $data);
     }
 
     public function delete(string $endpoint): array
