@@ -8,8 +8,11 @@ SDK oficial para a **API v1** do [Gestor Simples](https://app.gestorsimples.com.
 
 ## Instalação
 
+O pacote não está no Packagist. Declare o repositório e instale:
+
 ```bash
-composer require tiagoknow/gestor-simples-sdk
+composer config repositories.gestor-simples vcs https://github.com/tiagoknow/gestor-simples-sdk-php.git
+composer require tiagoknow/gestor-simples-sdk-php:^2.0
 ```
 
 ## Configuração
