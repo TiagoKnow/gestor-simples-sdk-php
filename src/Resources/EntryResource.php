@@ -21,7 +21,7 @@ class EntryResource
     public function __construct(private GestorSimplesClient $client) {}
 
     /**
-     * @param  array{kind?: string, status?: string, date_from?: string, date_to?: string, per_page?: int}  $params
+     * @param  array{kind?: string, status?: string, date_from?: string, date_to?: string, external_id?: string, per_page?: int}  $params
      *                                                                                                              kind: income | expense · status: pending | paid | overdue
      */
     public function all(array $params = []): array
@@ -43,10 +43,23 @@ class EntryResource
     }
 
     /**
+     * O lançamento de um pagamento pela chave do SaaS. Null quando não existe.
+     */
+    public function findByExternalId(string $externalId): ?array
+    {
+        $response = $this->all(['external_id' => $externalId, 'per_page' => 1]);
+
+        return $response['data'][0] ?? null;
+    }
+
+    /**
      * Cria um lançamento.
      *
      * `category` por nome cria ou reusa a categoria daquele tipo, então cada
      * sistema integrado usa a própria sem precisar de configuração prévia.
+     *
+     * `external_id` (chave do pagamento no SaaS, única por empresa) torna a
+     * chamada idempotente: repetir devolve o lançamento existente.
      */
     public function create(array $data): array
     {

@@ -9,6 +9,7 @@ use GestorSimples\Exceptions\ApiException;
 use GestorSimples\Exceptions\AuthenticationException;
 use GestorSimples\Exceptions\ValidationException;
 use GestorSimples\Resources\EntryResource;
+use GestorSimples\Resources\InvoiceResource;
 use GestorSimples\Resources\PersonResource;
 
 class GestorSimplesClient
@@ -20,7 +21,7 @@ class GestorSimplesClient
 
     public function __construct(array $config = [])
     {
-        $this->baseUrl = rtrim($config['base_url'] ?? 'https://app.gestorsimples.com.br/api/v1/', '/').'/';
+        $this->baseUrl = rtrim($config['base_url'] ?? 'https://gestorsimples.com.br/api/v1/', '/').'/';
         $this->apiToken = $config['api_token'] ?? null;
 
         if (empty($this->apiToken)) {
@@ -31,7 +32,7 @@ class GestorSimplesClient
             'Authorization' => 'Bearer ' . $this->apiToken,
             'Accept' => 'application/json',
             'Content-Type' => 'application/json',
-            'User-Agent' => 'GestorSimples-PHP-SDK/2.0',
+            'User-Agent' => 'GestorSimples-PHP-SDK/2.1',
         ];
 
         $this->httpClient = new Client([
@@ -111,6 +112,14 @@ class GestorSimplesClient
     public function entries(): EntryResource
     {
         return new EntryResource($this);
+    }
+
+    /**
+     * Notas fiscais de serviço (`/v1/invoices`).
+     */
+    public function invoices(): InvoiceResource
+    {
+        return new InvoiceResource($this);
     }
 
     /**
