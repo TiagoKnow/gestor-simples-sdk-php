@@ -1,11 +1,14 @@
 <?php
 
 /**
- * Caso âncora: o gateway (Stripe/Asaas) confirmou um pagamento e o SaaS
- * registra a entrada no GestorSimples.
+ * Caso âncora: o gateway (Stripe/Asaas) confirmou um pagamento e o SaaS pede
+ * a NFS-e. Uma chamada só: o GestorSimples acha ou cria o tomador pelo
+ * documento, lança o recebimento e põe a nota na fila.
  *
- * O SaaS conhece o cliente pelo documento, não pelo id do GestorSimples —
- * por isso o findOrCreateByDocument: não duplica cadastro a cada cobrança.
+ * `external_id` é a chave do pagamento no SaaS: o webhook do gateway pode
+ * chegar duas vezes, e a segunda chamada devolve a mesma nota.
+ *
+ * ATENÇÃO: contra um servidor configurado, isto emite uma nota de verdade.
  */
 
 require __DIR__.'/../vendor/autoload.php';
@@ -19,24 +22,32 @@ $client = new GestorSimplesClient([
 ]);
 
 try {
-    $customer = $client->people()->findOrCreateByDocument('11.222.333/0001-81', [
-        'type' => 'customer',
-        'name' => 'Café Aurora LTDA',
-        'email' => 'financeiro@cafeaurora.test',
+    $invoice = $client->invoices()->issue([
+        'external_id' => 'consultafast:credit:6721a0f0c3b1',
+        'description' => 'ConsultaFast - Total de 100 créditos',
+        'amount' => '30.00',
+        'person' => [
+            'document' => '11.222.333/0001-81',
+            'name' => 'Café Aurora LTDA',
+            'email' => 'financeiro@cafeaurora.test',
+            'zip_code' => '60160-250',
+            'street' => 'R Pereira Valente',
+            'number' => '578',
+            'district' => 'Meireles',
+            'city' => 'Fortaleza',
+            'state' => 'CE',
+        ],
+        // a categoria por nome é criada na primeira vez
+        'entry' => ['category' => 'ConsultaFast', 'notes' => 'Asaas pay_123'],
     ]);
 
-    // `category` por nome cria ou reusa: cada SaaS usa a própria, sem setup
-    $entry = $client->entries()->recordPayment(
-        description: 'Assinatura Pro — set/2026',
-        amount: '149.90',
-        date: date('Y-m-d'),
-        extra: [
-            'person_id' => $customer['id'],
-            'category' => 'MeetBox',
-        ],
-    );
+    // a emissão é assíncrona: guarde o id e espere o webhook invoice.authorized
+    echo "Nota {$invoice['id']} pedida ({$invoice['status']}).\n";
 
-    echo "Lançamento {$entry['id']} registrado ({$entry['status']}).\n";
+    if ($invoice['status'] === 'error') {
+        // o recebimento foi lançado igual; corrija o tomador e peça de novo
+        echo "Não saiu: {$invoice['error']}\n";
+    }
 } catch (ValidationException $e) {
     foreach ($e->getErrors() as $field => $messages) {
         echo "  {$field}: ".implode(' ', $messages)."\n";

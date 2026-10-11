@@ -247,6 +247,71 @@ checa('lançamento de outra empresa responde 404', function () use ($client) {
     }
 });
 
+echo "\nIdempotência por external_id\n";
+
+checa('mesmo external_id devolve o mesmo lançamento', function () use ($client, $marca, &$customer) {
+    $chave = "ensaio:{$marca}";
+    $dados = ['person_id' => $customer['id'], 'external_id' => $chave];
+
+    $primeiro = $client->entries()->recordPayment("Reenvio {$marca}", '19.90', date('Y-m-d'), $dados);
+    $segundo = $client->entries()->recordPayment("Reenvio {$marca}", '19.90', date('Y-m-d'), $dados);
+
+    return ($primeiro['id'] ?? 'a') === ($segundo['id'] ?? 'b') ? true : 'criou dois lançamentos';
+});
+
+checa('acha o lançamento pela chave do SaaS', fn () => ($client->entries()->findByExternalId("ensaio:{$marca}")['external_id'] ?? null) === "ensaio:{$marca}"
+    ? true
+    : 'não achou pela chave');
+
+// Notas: só caminhos que não emitem. Emitir de verdade põe a nota na fila do
+// integrador do tenant — em Embu, isso é uma NFS-e real no portal.
+echo "\nNotas fiscais (sem emitir)\n";
+
+checa('pedido com documento inválido é recusado antes de lançar', function () use ($client, $marca) {
+    try {
+        $client->invoices()->issue([
+            'external_id' => "ensaio:nota:{$marca}",
+            'description' => 'Não deve sair',
+            'amount' => '10.00',
+            'person' => ['document' => '111.111.111-11', 'name' => 'Documento ruim'],
+        ]);
+
+        return 'esperava ValidationException';
+    } catch (ValidationException $e) {
+        return isset($e->getErrors()['person.document']) ? true : 'erro não veio em person.document';
+    }
+});
+
+checa('pedido recusado não deixou lançamento', fn () => $client->entries()->findByExternalId("ensaio:nota:{$marca}") === null
+    ? true
+    : 'lançou o dinheiro de um pedido inválido');
+
+checa('chave sem nota devolve null', fn () => $client->invoices()->findByExternalId("ensaio:nota:{$marca}") === null
+    ? true
+    : 'esperava null');
+
+checa('nota inexistente devolve null', fn () => $client->invoices()->find('01m0000000000000000000000z') === null
+    ? true
+    : 'esperava null');
+
+checa('listagem de notas traz meta de paginação', function () use ($client) {
+    $meta = $client->invoices()->all(['per_page' => 1])['meta'] ?? [];
+
+    return isset($meta['current_page'], $meta['last_page'], $meta['total'])
+        ? true
+        : 'meta incompleta: '.json_encode($meta);
+});
+
+checa('retry de nota inexistente responde 404', function () use ($client) {
+    try {
+        $client->invoices()->retry('01m0000000000000000000000z');
+
+        return 'esperava ApiException';
+    } catch (ApiException $e) {
+        return $e->getCode() === 404 ? true : 'status '.$e->getCode();
+    }
+});
+
 echo "\n".str_repeat('─', 52)."\n";
 echo $falhas === 0
     ? "Ensaio completo: {$passos} verificações, todas passaram.\n"

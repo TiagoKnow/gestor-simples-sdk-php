@@ -38,7 +38,8 @@ class ContractTest extends TestCase
 
     /**
      * A base sem a v1 era o que sobrava do admin legado: o SDK apontava para
-     * o domínio novo e caminhos antigos.
+     * o domínio novo e caminhos antigos. E `app.` nem existe no DNS — a
+     * produção é o domínio raiz.
      */
     #[Test]
     public function base_padrao_aponta_para_a_v1(): void
@@ -46,7 +47,7 @@ class ContractTest extends TestCase
         $client = new \GestorSimples\GestorSimplesClient(['api_token' => 'gsk_x']);
 
         $this->assertSame(
-            'https://app.gestorsimples.com.br/api/v1/',
+            'https://gestorsimples.com.br/api/v1/',
             (new \ReflectionProperty($client, 'baseUrl'))->getValue($client)
         );
     }
@@ -213,6 +214,23 @@ class ContractTest extends TestCase
         $this->client([[200, ['data' => []]]])->entries()->setPaid('01k3', false);
 
         $this->assertFalse($this->lastBody()['paid']);
+    }
+
+    #[Test]
+    public function acha_lancamento_pela_chave_do_saas(): void
+    {
+        $entry = $this->client([[200, ['data' => [['id' => '01k4']]]]])
+            ->entries()->findByExternalId('consultafast:credit:abc');
+
+        $this->assertSame('01k4', $entry['id']);
+        $this->assertSame('consultafast:credit:abc', $this->lastQuery()['external_id']);
+    }
+
+    #[Test]
+    public function lancamento_sem_a_chave_devolve_null(): void
+    {
+        $this->assertNull($this->client([[200, ['data' => []]]])
+            ->entries()->findByExternalId('consultafast:credit:nada'));
     }
 
     // --- categorias e erros ----------------------------------------------
